@@ -40,12 +40,12 @@ class OuvidoriaFlowFactory
         $nodes = [
             $node(self::ENTRY_NODE, 'message', 1280, 5600, [
                 'label' => 'Ouvidoria: introdução',
-                'text' => "🏛️ *Ouvidoria — Prefeitura Municipal*\n\nVou registrar sua manifestação (reclamação, denúncia, sugestão, elogio ou solicitação) direto na ouvidoria.\n\nResponda às perguntas a seguir. Nos campos opcionais, envie *0* para pular.\n\n📎 No final você poderá anexar fotos ou documentos, se quiser.",
+                'text' => "🏛️ *Ouvidoria — Prefeitura Municipal*\n\nRegistre *reclamações, denúncias, sugestões, elogios ou solicitações* direto na ouvidoria.\n\nResponda às perguntas a seguir — nos campos opcionais, envie *0* para pular. No final você poderá anexar *fotos ou documentos* (até 5 arquivos).\n\nAo concluir, você recebe o *protocolo* e o *código de acompanhamento* — guarde os dois para consultar o andamento.",
                 'continueLabel' => 'Iniciar registro',
             ]),
             $node('ouv_ident', 'menu', 1700, 5500, [
                 'label' => 'Ouvidoria: identificação',
-                'text' => 'Você prefere se identificar ou enviar de forma anônima?',
+                'text' => 'Você prefere se identificar ou enviar de forma *anônima* (sem se identificar)?',
                 'menuMode' => 'buttons',
                 'saveTo' => 'identificacao',
                 'options' => [
@@ -70,7 +70,7 @@ class OuvidoriaFlowFactory
             ]),
             $node('ouv_email', 'input', 2140, 5620, [
                 'label' => 'Ouvidoria: e-mail',
-                'text' => 'Informe seu *e-mail* (obrigatório — a ouvidoria responde por ele):',
+                'text' => 'Informe seu *e-mail* — usado para você receber a resposta e o número de protocolo:',
                 'variable' => 'email',
                 'validation' => 'email',
                 'maxLength' => 255,
@@ -101,14 +101,14 @@ class OuvidoriaFlowFactory
             ]),
             $node('ouv_assunto', 'input', 2580, 6000, [
                 'label' => 'Ouvidoria: assunto',
-                'text' => 'Escreva um *resumo* da manifestação (título):',
+                'text' => 'Escreva um *resumo da sua manifestação* (título):',
                 'variable' => 'assunto',
                 'validation' => 'text',
                 'maxLength' => 255,
             ]),
             $node('ouv_descricao', 'input', 2580, 6160, [
                 'label' => 'Ouvidoria: descrição',
-                'text' => 'Agora *descreva o que aconteceu*, com o máximo de detalhes:',
+                'text' => 'Agora *conte o que aconteceu*, com o máximo de detalhes:',
                 'variable' => 'descricao',
                 'validation' => 'text',
                 'maxLength' => 5000,
@@ -139,7 +139,7 @@ class OuvidoriaFlowFactory
             ]),
             $node('ouv_anexos', 'input', 2580, 6800, [
                 'label' => 'Ouvidoria: anexos',
-                'text' => "Se quiser, envie agora *fotos ou documentos* como anexo (até 5 arquivos, um por mensagem).\n\nQuando terminar — ou se não tiver anexos — envie *0*.",
+                'text' => "Se quiser, envie agora *documentos, fotos ou comprovantes* como anexo — até *5 arquivos* de 10 MB cada (PDF, imagens, DOC, DOCX, XLS...), um por mensagem.\n\nQuando terminar — ou se não tiver anexos — envie *0*.",
                 'variable' => 'anexos',
                 'validation' => 'media',
                 'maxItems' => 5,
@@ -147,7 +147,7 @@ class OuvidoriaFlowFactory
             ]),
             $node('ouv_confirma', 'message', 3020, 6400, [
                 'label' => 'Ouvidoria: confirmação',
-                'text' => "📋 *Confira os dados:*\n\n*Tipo:* {{flow.tipo_label}}\n*Assunto:* {{flow.assunto}}\n*Descrição:* {{flow.descricao}}\n*Nome:* {{flow.nome}}\n*Telefone:* {{contact.phone}}\n*Anexos:* {{flow.anexos_total}} arquivo(s)\n\nToque em *Confirmar envio* para registrar na ouvidoria.",
+                'text' => "📋 *Confira os dados da manifestação:*\n\n*Tipo:* {{flow.tipo_label}}\n*Assunto:* {{flow.assunto}}\n*Descrição:* {{flow.descricao}}\n*Nome:* {{flow.nome}}\n*Telefone:* {{contact.phone}}\n*Área:* {{flow.categoria}}\n*Endereço:* {{flow.endereco}}\n*Anexos:* {{flow.anexos_total}} arquivo(s)\n\nToque em *Confirmar envio* para registrar na ouvidoria.",
                 'continueLabel' => 'Confirmar envio',
             ]),
             $node('ouv_submit', 'action', 3460, 6400, [
@@ -156,7 +156,7 @@ class OuvidoriaFlowFactory
             ]),
             $node('ouv_sucesso', 'message', 3900, 6220, [
                 'label' => 'Ouvidoria: sucesso',
-                'text' => "✅ *Manifestação registrada na ouvidoria!*\n\n*Protocolo:* {{flow.ouvidoria_protocolo}}\n*Código de acompanhamento:* {{flow.ouvidoria_codigo}}\n\nGuarde esses dados para consultar a resposta.",
+                'text' => "✅ *Manifestação registrada com sucesso!*\n\n*Protocolo:* {{flow.ouvidoria_protocolo}}\n*Código de acompanhamento:* {{flow.ouvidoria_codigo}}\n\n⚠️ *Guarde os dois juntos* — você vai precisar de ambos para acompanhar e, por segurança, eles não podem ser recuperados.\n\nSua manifestação foi encaminhada ao setor responsável. Se você se identificou, receberá a resposta pelo e-mail informado.\n\nPara consultar depois, use a opção *Acompanhar pedido* do menu ou o link abaixo.",
                 'links' => [
                     ['label' => 'Acompanhar manifestação', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/consulta'],
                 ],

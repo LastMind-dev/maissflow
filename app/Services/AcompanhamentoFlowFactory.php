@@ -40,7 +40,7 @@ class AcompanhamentoFlowFactory
         $nodes = [
             $node(self::ENTRY_NODE, 'message', 1280, 8800, [
                 'label' => 'Consulta: introdução',
-                'text' => "🔎 *Acompanhar manifestação ou pedido*\n\nVou consultar o andamento direto no sistema da Prefeitura. Tenha em mãos o *protocolo* e o *código de acompanhamento* que você recebeu no registro.",
+                'text' => "🔎 *Acompanhar manifestação ou pedido*\n\nConsulte o andamento direto no sistema da Prefeitura — funciona para registros da *Ouvidoria* e do *e-SIC*.\n\nInforme o *protocolo* e o *código de acompanhamento* que estão no seu recibo.",
                 'continueLabel' => 'Consultar',
             ]),
             $node('ac_protocolo', 'input', 1700, 8700, [
@@ -52,7 +52,7 @@ class AcompanhamentoFlowFactory
             ]),
             $node('ac_codigo', 'input', 1700, 8860, [
                 'label' => 'Consulta: código',
-                'text' => 'Agora informe o *código de acompanhamento* enviado no recibo:',
+                'text' => 'Agora informe o *código de acompanhamento* (ex.: ABCD2345) — ele foi mostrado junto do protocolo quando você registrou:',
                 'variable' => 'consulta_codigo',
                 'validation' => 'any',
                 'maxLength' => 20,
@@ -63,7 +63,7 @@ class AcompanhamentoFlowFactory
             ]),
             $node('ac_resultado', 'message', 2580, 8660, [
                 'label' => 'Consulta: resultado',
-                'text' => "📄 *Protocolo {{flow.consulta_protocolo}}*\n\n*Tipo:* {{flow.consulta_tipo_label}}\n*Assunto:* {{flow.consulta_assunto}}\n*Situação:* {{flow.consulta_status_label}}\n*Registrado em:* {{flow.consulta_criado_em}}\n*Prazo de resposta:* {{flow.consulta_prazo}}\n*Setor responsável:* {{flow.consulta_setor}}\n*Anexos:* {{flow.consulta_anexos_total}}\n\n*Resposta:*\n{{flow.consulta_resposta}}",
+                'text' => "📄 *Protocolo {{flow.consulta_protocolo}}*\n\n*Tipo:* {{flow.consulta_tipo_label}}\n*Assunto:* {{flow.consulta_assunto}}\n*Situação:* {{flow.consulta_status_label}}\n*Registrado em:* {{flow.consulta_criado_em}}\n*Prazo de resposta:* {{flow.consulta_prazo}}\n*Setor responsável:* {{flow.consulta_setor}}\n*Anexos:* {{flow.consulta_anexos_total}}\n\n*Resposta:*\n{{flow.consulta_resposta}}\n\n📌 Pedidos *e-SIC* com resposta negativa, parcial ou ausente no prazo podem ser *recorridos em até 10 dias* pelo portal.",
                 'links' => [
                     ['label' => 'Ver detalhes no portal', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/consulta'],
                 ],

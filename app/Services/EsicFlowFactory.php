@@ -40,7 +40,7 @@ class EsicFlowFactory
         $nodes = [
             $node(self::ENTRY_NODE, 'message', 1280, 7200, [
                 'label' => 'e-SIC: introdução',
-                'text' => "📄 *Pedido de Acesso à Informação (e-SIC)*\n\nVou registrar seu pedido pela Lei de Acesso à Informação direto no sistema da Prefeitura.\n\n⚠️ *Importante:* a lei exige identificação — não é possível enviar de forma anônima. Você vai precisar do *nome completo*, *CPF* e *e-mail*.\n\nA resposta tem prazo legal e você poderá acompanhar pelo protocolo.",
+                'text' => "📄 *e-SIC — Pedido de Acesso à Informação*\n\nSolicite informações públicas ao município, conforme a *Lei nº 12.527/2011 (LAI)*.\n\n⚠️ *A lei exige identificação* — não é possível pedir de forma anônima. Você vai precisar de *nome completo*, *CPF* e *e-mail*.\n\n⏱️ A resposta tem *prazo legal* (em geral até 20 dias, prorrogável por igual período). Ao concluir você recebe *protocolo* + *código de acompanhamento*.",
                 'continueLabel' => 'Iniciar pedido',
             ]),
             $node('esic_nome', 'input', 1700, 7100, [
@@ -68,21 +68,21 @@ class EsicFlowFactory
             ]),
             $node('esic_assunto', 'input', 2140, 7260, [
                 'label' => 'e-SIC: assunto',
-                'text' => 'Escreva um *resumo* do pedido de informação (título):',
+                'text' => 'Escreva um *resumo do que você quer saber* (título do pedido):',
                 'variable' => 'assunto',
                 'validation' => 'text',
                 'maxLength' => 255,
             ]),
             $node('esic_descricao', 'input', 2140, 7420, [
                 'label' => 'e-SIC: descrição',
-                'text' => 'Agora *descreva a informação que você solicita*, com o máximo de detalhes para localizá-la:',
+                'text' => 'Agora *detalhe a informação solicitada*, com o máximo de dados para localizá-la:',
                 'variable' => 'descricao',
                 'validation' => 'text',
                 'maxLength' => 5000,
             ]),
             $node('esic_anexos', 'input', 2140, 7580, [
                 'label' => 'e-SIC: anexos',
-                'text' => "Se quiser, envie agora *documentos de referência* como anexo (até 5 arquivos, um por mensagem).\n\nQuando terminar — ou se não tiver anexos — envie *0*.",
+                'text' => "Se quiser, envie *documentos ou imagens de referência* como anexo — até *5 arquivos* de 10 MB cada (PDF, imagens, DOC, DOCX, XLS...), um por mensagem.\n\nQuando terminar — ou se não tiver anexos — envie *0*.",
                 'variable' => 'anexos',
                 'validation' => 'media',
                 'maxItems' => 5,
@@ -100,7 +100,7 @@ class EsicFlowFactory
             ]),
             $node('esic_sucesso', 'message', 3460, 7240, [
                 'label' => 'e-SIC: sucesso',
-                'text' => "✅ *Pedido de informação registrado!*\n\n*Protocolo:* {{flow.ouvidoria_protocolo}}\n*Código de acompanhamento:* {{flow.ouvidoria_codigo}}\n\nGuarde esses dados: o prazo legal de resposta conta a partir de hoje e você pode consultar o andamento aqui mesmo ou pelo portal.",
+                'text' => "✅ *Pedido registrado com sucesso!*\n\n*Protocolo:* {{flow.ouvidoria_protocolo}}\n*Código de acompanhamento:* {{flow.ouvidoria_codigo}}\n\n⚠️ *Guarde os dois juntos* — eles não podem ser recuperados depois.\n\nSeu pedido de acesso à informação foi recebido e será respondido dentro do *prazo legal*. Se a resposta for negativa ou parcial — ou não chegar no prazo — você pode *recorrer em até 10 dias* pelo portal.\n\nPara acompanhar, use a opção *Acompanhar pedido* do menu ou o link abaixo.",
                 'links' => [
                     ['label' => 'Acompanhar pedido', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/consulta'],
                 ],
