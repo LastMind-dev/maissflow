@@ -19,9 +19,13 @@ class OuvidoriaFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function bootContext(): array
+    private function bootContext(bool $api = false): array
     {
-        config(['services.ged.ouvidoria_url' => 'https://ged.test/ouvidoria']);
+        config([
+            'services.ged.ouvidoria_url' => 'https://ged.test/ouvidoria',
+            'services.ged.api_url' => $api ? 'https://ged.test/api/portal/v1' : '',
+            'services.ged.api_token' => $api ? 'token-ged-integracao' : null,
+        ]);
 
         $workspace = Workspace::create(['name' => 'Empresa', 'slug' => 'empresa']);
         $channel = WhatsAppChannel::create([
@@ -85,6 +89,7 @@ class OuvidoriaFlowTest extends TestCase
         $send($text('0'));
         $send($text('Lâmpada queimada'));
         $send($text('Poste apagado há três dias na rua principal'));
+        $send($text('0'));
         $send($text('0'));
         $send($text('0'));
         $send($text('0'));
@@ -226,6 +231,7 @@ class OuvidoriaFlowTest extends TestCase
             '0',
             '0',
             '0',
+            '0',
             'continue',
         ]);
 
@@ -235,5 +241,289 @@ class OuvidoriaFlowTest extends TestCase
         $texts = collect($result['transcript'])->pluck('text')->implode("\n");
         $this->assertStringContainsString('Ação simulada', $texts);
         $this->assertStringContainsString('2026000000', $texts);
+    }
+
+    /**
+     * Fake da Graph API (mensagens + mídia) e da API oficial do GED.
+     * $overrides permite customizar respostas por endpoint nos testes.
+     */
+    private function fakeWhatsAppAndApi(array $overrides = []): void
+    {
+        $sent = 0;
+        Http::fake(function ($request) use (&$sent, $overrides) {
+            $url = $request->url();
+
+            if (str_contains($url, 'lookaside.fbsbx.com')) {
+                return Http::response('CONTEUDO-BINARIO-FAKE', 200);
+            }
+
+            if (str_contains($url, 'graph.facebook.com')) {
+                if (str_ends_with($url, '/messages') || str_contains($url, '/register')) {
+                    $sent++;
+
+                    return Http::response(['messages' => [['id' => "wamid.out-{$sent}"]]], 200);
+                }
+
+                // GET /{media-id}: metadados da mídia inbound.
+                return Http::response([
+                    'url' => 'https://lookaside.fbsbx.com/whatsapp_business/attachments/abc',
+                    'mime_type' => 'application/pdf',
+                    'sha256' => 'deadbeef',
+                    'file_size' => 1234,
+                ], 200);
+            }
+
+            if (str_contains($url, '/manifestacoes/') && str_ends_with($url, '/anexos')) {
+                return $overrides['anexos'] ?? Http::response(['anexos_total' => 1], 201);
+            }
+
+            if (str_ends_with($url, '/manifestacoes')) {
+                return $overrides['manifestacoes'] ?? Http::response([
+                    'protocolo' => '2026000099',
+                    'codigo' => 'XY9Z2',
+                    'canal' => 'ouvidoria',
+                    'status' => 'aberto',
+                    'data_limite' => '2026-10-20',
+                ], 201);
+            }
+
+            if (str_ends_with($url, '/consulta')) {
+                return $overrides['consulta'] ?? Http::response([
+                    'protocolo' => '2026000099',
+                    'canal' => 'ouvidoria',
+                    'tipo' => 'reclamacao',
+                    'status' => 'em_analise',
+                    'status_label' => 'Em análise',
+                    'assunto' => 'Lâmpada queimada',
+                    'criado_em' => '2026-09-30T10:00:00-03:00',
+                    'data_limite' => '2026-10-20',
+                    'setor' => 'Iluminação Pública',
+                    'resposta' => 'Equipe acionada para reparo.',
+                    'anexos_total' => 1,
+                ], 200);
+            }
+
+            return Http::response('<form><input type="hidden" name="_token" value="token-123"></form>', 200);
+        });
+    }
+
+    private function walker(WhatsAppChannel $channel, array $value, string $prefix): callable
+    {
+        $runtime = app(ConversationRuntime::class);
+        $step = 0;
+
+        return function (array $inbound) use ($runtime, $channel, $value, &$step, $prefix): void {
+            $step++;
+            $runtime->ingestInbound($channel, $value, [
+                'from' => '5517999999999',
+                'id' => "wamid.{$prefix}-{$step}",
+                ...$inbound,
+            ]);
+        };
+    }
+
+    private function button(string $id, string $title): array
+    {
+        return ['type' => 'interactive', 'interactive' => ['button_reply' => ['id' => $id, 'title' => $title]]];
+    }
+
+    private function listOption(string $id, string $title): array
+    {
+        return ['type' => 'interactive', 'interactive' => ['list_reply' => ['id' => $id, 'title' => $title]]];
+    }
+
+    private function texto(string $body): array
+    {
+        return ['type' => 'text', 'text' => ['body' => $body]];
+    }
+
+    public function test_submission_uses_the_official_api_when_configured(): void
+    {
+        $this->fakeWhatsAppAndApi();
+
+        [$channel, $value] = $this->bootContext(api: true);
+        $this->walkOuvidoria($channel, $value);
+
+        $execution = FlowExecution::query()->firstOrFail();
+        $variables = $execution->context['variables'];
+        $this->assertSame('2026000099', $variables['ouvidoria_protocolo']);
+        $this->assertSame('XY9Z2', $variables['ouvidoria_codigo']);
+        $this->assertSame('1', $variables['ouvidoria_enviada']);
+        $this->assertSame('ouv_sucesso', Conversation::query()->firstOrFail()->current_node_id);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://ged.test/api/portal/v1/manifestacoes'
+            && $request->method() === 'POST'
+            && $request->hasHeader('Authorization', 'Bearer token-ged-integracao')
+            && $request->hasHeader('Idempotency-Key')
+            && ($request['canal'] ?? null) === 'ouvidoria'
+            && ($request['assunto'] ?? null) === 'Lâmpada queimada'
+            && ($request['nome_solicitante'] ?? null) === 'João da Silva'
+            && ($request['cpf'] ?? null) === '111.444.777-35');
+
+        // O formulário público NÃO deve ser chamado quando a API está ativa.
+        Http::assertNotSent(fn ($request) => $request->url() === 'https://ged.test/ouvidoria');
+    }
+
+    public function test_media_attachment_is_collected_downloaded_and_uploaded(): void
+    {
+        $this->fakeWhatsAppAndApi();
+
+        [$channel, $value] = $this->bootContext(api: true);
+        $send = $this->walker($channel, $value, 'media');
+
+        $send($this->texto('Oi'));
+        $send($this->listOption('ouvidoria', 'Ouvidoria'));
+        $send($this->button('continue', 'Iniciar registro'));
+        $send($this->button('identificado', 'Me identificar'));
+        $send($this->texto('João da Silva'));
+        $send($this->texto('11144477735'));
+        $send($this->texto('cidadao@exemplo.com'));
+        $send($this->listOption('reclamacao', 'Reclamação'));
+        $send($this->texto('0'));
+        $send($this->texto('Lâmpada queimada'));
+        $send($this->texto('Poste apagado há três dias'));
+        $send($this->texto('0'));
+        $send($this->texto('0'));
+        $send($this->texto('0'));
+
+        // Nó de anexos: documento inbound é acumulado (não avança).
+        $send([
+            'type' => 'document',
+            'document' => [
+                'id' => 'media-doc-1',
+                'mime_type' => 'application/pdf',
+                'filename' => 'foto-do-poste.pdf',
+            ],
+        ]);
+
+        $execution = FlowExecution::query()->firstOrFail();
+        $this->assertSame('waiting', $execution->status);
+        $this->assertSame('ouv_anexos', $execution->current_node_id);
+        $this->assertSame('media-doc-1', $execution->context['variables']['anexos'][0]['media_id']);
+        $this->assertSame('foto-do-poste.pdf', $execution->context['variables']['anexos'][0]['filename']);
+
+        $send($this->texto('0'));
+        $send($this->button('continue', 'Confirmar envio'));
+
+        $variables = FlowExecution::query()->firstOrFail()->context['variables'];
+        $this->assertSame('2026000099', $variables['ouvidoria_protocolo']);
+        $this->assertSame('1', $variables['anexos_total']);
+        $this->assertSame('1', $variables['ouvidoria_anexos']);
+
+        // Metadados da mídia buscados na Graph API e binário baixado da URL assinada.
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'graph.facebook.com')
+            && str_ends_with($request->url(), '/media-doc-1')
+            && $request->method() === 'GET');
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'lookaside.fbsbx.com'));
+
+        // Upload autenticado pelo código do cidadão.
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/manifestacoes/2026000099/anexos')
+            && $request->method() === 'POST'
+            && $request->hasHeader('Authorization', 'Bearer token-ged-integracao'));
+    }
+
+    public function test_esic_branch_registers_with_cpf_and_no_anonymous(): void
+    {
+        $this->fakeWhatsAppAndApi();
+
+        [$channel, $value] = $this->bootContext(api: true);
+        $send = $this->walker($channel, $value, 'esic');
+
+        $send($this->texto('Oi'));
+        $send($this->listOption('esic', 'Pedido e-SIC'));
+        $send($this->button('continue', 'Iniciar pedido'));
+        $send($this->texto('Maria Souza'));
+        $send($this->texto('11144477735'));
+        $send($this->texto('maria@exemplo.com'));
+        $send($this->texto('Cópia do contrato'));
+        $send($this->texto('Solicito acesso integral ao contrato 12/2025'));
+        $send($this->texto('0'));
+        $send($this->button('continue', 'Enviar pedido'));
+
+        $execution = FlowExecution::query()->firstOrFail();
+        $variables = $execution->context['variables'];
+        $this->assertSame('2026000099', $variables['ouvidoria_protocolo']);
+        $this->assertSame('esic_sucesso', Conversation::query()->firstOrFail()->current_node_id);
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/manifestacoes')
+            && $request->method() === 'POST'
+            && ($request['canal'] ?? null) === 'esic'
+            && ($request['cpf'] ?? null) === '111.444.777-35'
+            && ($request['nome_solicitante'] ?? null) === 'Maria Souza'
+            && ! isset($request['anonimo'])
+            && ! isset($request['tipo']));
+    }
+
+    public function test_esic_rejects_api_path_missing(): void
+    {
+        $this->fakeWhatsAppAndApi();
+
+        // Sem GED_API_URL/GED_API_TOKEN o e-SIC não tem fallback de formulário.
+        [$channel, $value] = $this->bootContext(api: false);
+        $send = $this->walker($channel, $value, 'esicnoapi');
+
+        $send($this->texto('Oi'));
+        $send($this->listOption('esic', 'Pedido e-SIC'));
+        $send($this->button('continue', 'Iniciar pedido'));
+        $send($this->texto('Maria Souza'));
+        $send($this->texto('11144477735'));
+        $send($this->texto('maria@exemplo.com'));
+        $send($this->texto('Cópia do contrato'));
+        $send($this->texto('Solicito acesso integral ao contrato'));
+        $send($this->texto('0'));
+        $send($this->button('continue', 'Enviar pedido'));
+
+        $this->assertSame('esic_erro', Conversation::query()->firstOrFail()->current_node_id);
+    }
+
+    public function test_acompanhamento_shows_status_from_the_api(): void
+    {
+        $this->fakeWhatsAppAndApi();
+
+        [$channel, $value] = $this->bootContext(api: true);
+        $send = $this->walker($channel, $value, 'ac');
+
+        $send($this->texto('Oi'));
+        $send($this->listOption('acompanhamento', 'Acompanhar pedido'));
+        $send($this->button('continue', 'Consultar'));
+        $send($this->texto('2026000099'));
+        $send($this->texto('XY9Z2'));
+
+        $this->assertSame('ac_resultado', Conversation::query()->firstOrFail()->current_node_id);
+        $this->assertTrue(
+            Message::query()
+                ->where('direction', 'outbound')
+                ->pluck('content')
+                ->contains(fn ($content): bool => str_contains($content['text'] ?? '', 'Em análise')),
+        );
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/consulta')
+            && $request->method() === 'POST'
+            && ($request['protocolo'] ?? null) === '2026000099'
+            && ($request['codigo'] ?? null) === 'XY9Z2');
+    }
+
+    public function test_acompanhamento_wrong_credentials_follows_error_edge(): void
+    {
+        $this->fakeWhatsAppAndApi([
+            'consulta' => Http::response(['message' => 'Protocolo ou código de acompanhamento inválidos.'], 404),
+        ]);
+
+        [$channel, $value] = $this->bootContext(api: true);
+        $send = $this->walker($channel, $value, 'ac404');
+
+        $send($this->texto('Oi'));
+        $send($this->listOption('acompanhamento', 'Acompanhar pedido'));
+        $send($this->button('continue', 'Consultar'));
+        $send($this->texto('2026000099'));
+        $send($this->texto('ERRADO'));
+
+        $this->assertSame('ac_erro', Conversation::query()->firstOrFail()->current_node_id);
+        $this->assertTrue(
+            Message::query()
+                ->where('direction', 'outbound')
+                ->pluck('content')
+                ->contains(fn ($content): bool => str_contains($content['text'] ?? '', 'não localizados')),
+        );
     }
 }

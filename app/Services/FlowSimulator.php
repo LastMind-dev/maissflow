@@ -139,6 +139,56 @@ class FlowSimulator
                     'node_id' => $current['id'],
                 ];
 
+                // Coleta de anexos: cada entrada não-skip simula uma mídia
+                // recebida; '0'/token de conclusão ou o limite encerram o nó.
+                if (($data['validation'] ?? null) === 'media') {
+                    $variable = (string) ($data['variable'] ?? 'anexos');
+                    $max = max(1, (int) ($data['maxItems'] ?? 5));
+                    $items = is_array($variables[$variable] ?? null) ? $variables[$variable] : [];
+
+                    while (count($items) < $max) {
+                        if (! array_key_exists($inputIndex, $inputs)) {
+                            $variables[$variable] = $items;
+
+                            return [
+                                'status' => 'waiting_input',
+                                'current_node_id' => $current['id'],
+                                'transcript' => $transcript,
+                            ];
+                        }
+
+                        $answer = trim((string) $inputs[$inputIndex++]);
+                        if (FlowInputValidator::isSkipToken($answer)) {
+                            $transcript[] = [
+                                'direction' => 'inbound',
+                                'type' => 'text',
+                                'text' => '(anexos concluídos)',
+                                'node_id' => $current['id'],
+                            ];
+                            break;
+                        }
+
+                        $items[] = [
+                            'media_id' => 'sim-'.count($items),
+                            'type' => 'document',
+                            'filename' => $answer,
+                            'mime' => null,
+                            'caption' => null,
+                        ];
+                        $transcript[] = [
+                            'direction' => 'inbound',
+                            'type' => 'media',
+                            'text' => "(anexo simulado) {$answer}",
+                            'node_id' => $current['id'],
+                        ];
+                    }
+
+                    $variables[$variable] = $items;
+                    $current = $this->nextNode($nodes, $edges, $current['id']);
+
+                    continue;
+                }
+
                 if (! array_key_exists($inputIndex, $inputs)) {
                     return [
                         'status' => 'waiting_input',

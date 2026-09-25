@@ -84,6 +84,43 @@ class WhatsAppCloudApiService
         ]);
     }
 
+    /**
+     * Baixa uma mídia recebida pelo webhook em dois passos da Graph API:
+     * GET /{media-id} devolve a URL assinada; GET na URL com o Bearer retorna
+     * o binário. Retorna null quando a mídia não pode ser obtida.
+     *
+     * @return array{binary: string, mime: ?string, sha256: ?string}|null
+     */
+    public function downloadMedia(WhatsAppChannel $channel, string $mediaId): ?array
+    {
+        $this->assertConfigured($channel);
+
+        $meta = Http::acceptJson()
+            ->withToken($channel->access_token)
+            ->timeout(15)
+            ->get($this->baseUrl($channel).'/'.$mediaId);
+
+        $url = $meta->json('url');
+        if (! $meta->successful() || ! is_string($url) || $url === '') {
+            return null;
+        }
+
+        $file = Http::withToken($channel->access_token)
+            ->timeout(60)
+            ->retry(2, 400, throw: false)
+            ->get($url);
+
+        if (! $file->successful()) {
+            return null;
+        }
+
+        return [
+            'binary' => $file->body(),
+            'mime' => $meta->json('mime_type'),
+            'sha256' => $meta->json('sha256'),
+        ];
+    }
+
     public function testConnection(WhatsAppChannel $channel): array
     {
         $this->assertConfigured($channel);

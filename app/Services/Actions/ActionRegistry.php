@@ -12,6 +12,7 @@ class ActionRegistry
      */
     private const ACTIONS = [
         'ouvidoria.submit' => OuvidoriaSubmitAction::class,
+        'ouvidoria.consulta' => OuvidoriaConsultaAction::class,
     ];
 
     public function find(string $id): ?FlowAction

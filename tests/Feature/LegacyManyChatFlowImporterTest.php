@@ -59,8 +59,8 @@ class LegacyManyChatFlowImporterTest extends TestCase
         $this->assertSame('published', $published->status);
         $this->assertSame('manychat', $published->graph['source']['provider']);
         $this->assertSame('Newchatbot', $published->graph['source']['name']);
-        $this->assertCount(50, $published->graph['nodes']);
-        $this->assertCount(91, $published->graph['edges']);
+        $this->assertCount(68, $published->graph['nodes']);
+        $this->assertCount(113, $published->graph['edges']);
         $this->assertSame('archived', $oldPublished->fresh()->status);
         $this->assertDatabaseHas('automation_versions', [
             'automation_id' => $automation->id,

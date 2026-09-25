@@ -4,7 +4,7 @@ namespace App\Services;
 
 class FlowInputValidator
 {
-    public const RULES = ['any', 'text', 'cpf', 'email', 'phone'];
+    public const RULES = ['any', 'text', 'cpf', 'email', 'phone', 'media'];
 
     private const SKIP_TOKENS = ['0', '-', 'pular', 'nao', 'não', 'n/a', 'skip'];
 

@@ -90,6 +90,7 @@ class ConversationRuntime
                 $conversation->fresh(['contact', 'channel']),
                 $this->extractSelection($inbound),
                 $this->extractInboundText($inbound),
+                $this->extractInboundMedia($inbound),
             );
         });
     }
@@ -153,8 +154,12 @@ class ConversationRuntime
         }, 3);
     }
 
-    private function advance(Conversation $conversation, ?string $selection, ?string $inboundText = null): void
-    {
+    private function advance(
+        Conversation $conversation,
+        ?string $selection,
+        ?string $inboundText = null,
+        ?array $inboundMedia = null,
+    ): void {
         $execution = $conversation->executions()->whereIn('status', ['running', 'waiting'])->latest()->first();
 
         if (! $execution) {
@@ -224,26 +229,71 @@ class ConversationRuntime
             $answer = $inboundText !== null ? trim($inboundText) : '';
             $data = $current['data'] ?? [];
 
-            if ($answer === '') {
-                $this->sendNode($conversation, $current, $this->executionVariables($execution));
+            // Nó de coleta de anexos: mídia recebida é acumulada na variável
+            // e o nó continua aguardando até '0'/token de conclusão ou o limite.
+            if (($data['validation'] ?? null) === 'media') {
+                $variable = (string) ($data['variable'] ?? 'anexos');
+                $max = max(1, (int) ($data['maxItems'] ?? 5));
+                $items = $execution->context['variables'][$variable] ?? [];
+                $items = is_array($items) ? array_values($items) : [];
 
-                return;
+                if ($inboundMedia !== null) {
+                    $items[] = $inboundMedia;
+                    $this->storeVariable($execution, $variable, $items);
+                    $count = count($items);
+
+                    if ($count < $max) {
+                        $this->sendInputAck(
+                            $conversation,
+                            $current,
+                            $execution,
+                            "📎 Anexo recebido ({$count}/{$max}). Envie outro arquivo ou *0* para concluir.",
+                        );
+
+                        return;
+                    }
+
+                    $this->sendInputAck(
+                        $conversation,
+                        $current,
+                        $execution,
+                        "📎 Anexo recebido — limite de {$max} atingido. Seguindo...",
+                    );
+                } elseif ($answer === '') {
+                    $this->sendNode($conversation, $current, $this->executionVariables($execution));
+
+                    return;
+                } elseif (! FlowInputValidator::isSkipToken($answer)) {
+                    $this->sendInputRetry($conversation, $current, $execution);
+
+                    return;
+                }
+
+                $this->storeVariable($execution, $variable.'_total', (string) count($items));
+                $current = $this->nextNode($nodes, $edges, $current['id']);
+                $execution->update(['status' => 'running', 'current_node_id' => $current['id'] ?? null]);
+            } else {
+                if ($answer === '') {
+                    $this->sendNode($conversation, $current, $this->executionVariables($execution));
+
+                    return;
+                }
+
+                if (! (($data['optional'] ?? false) && FlowInputValidator::isSkipToken($answer))
+                    && ! FlowInputValidator::validate($data, $answer)) {
+                    $this->sendInputRetry($conversation, $current, $execution);
+
+                    return;
+                }
+
+                $variable = (string) ($data['variable'] ?? 'resposta');
+                $skipped = (bool) ($data['optional'] ?? false) && FlowInputValidator::isSkipToken($answer);
+                $this->storeVariable($execution, $variable, $skipped ? '' : $answer);
+                $execution->update(['status' => 'running']);
+
+                $current = $this->nextNode($nodes, $edges, $current['id']);
+                $execution->update(['current_node_id' => $current['id'] ?? null]);
             }
-
-            if (! (($data['optional'] ?? false) && FlowInputValidator::isSkipToken($answer))
-                && ! FlowInputValidator::validate($data, $answer)) {
-                $this->sendInputRetry($conversation, $current, $execution);
-
-                return;
-            }
-
-            $variable = (string) ($data['variable'] ?? 'resposta');
-            $skipped = (bool) ($data['optional'] ?? false) && FlowInputValidator::isSkipToken($answer);
-            $this->storeVariable($execution, $variable, $skipped ? '' : $answer);
-            $execution->update(['status' => 'running']);
-
-            $current = $this->nextNode($nodes, $edges, $current['id']);
-            $execution->update(['current_node_id' => $current['id'] ?? null]);
         }
 
         if (($current['type'] ?? null) === 'message'
@@ -524,7 +574,7 @@ class ConversationRuntime
         ];
     }
 
-    private function storeVariable(FlowExecution $execution, string $key, string $value): void
+    private function storeVariable(FlowExecution $execution, string $key, mixed $value): void
     {
         $context = $execution->context ?? [];
         $context['variables'][$key] = $value;
@@ -536,6 +586,59 @@ class ConversationRuntime
         return is_array($execution->context['variables'] ?? null)
             ? $execution->context['variables']
             : [];
+    }
+
+    /**
+     * Descritor de mídia inbound (image/document/audio/video) capturado do
+     * webhook da Meta. O binário NÃO é baixado aqui — o download pela Graph
+     * API acontece só quando o fluxo precisa encaminhar o anexo ao GED.
+     *
+     * @return array{media_id: string, type: string, filename: string, mime: ?string, caption: ?string}|null
+     */
+    private function extractInboundMedia(array $inbound): ?array
+    {
+        $type = (string) ($inbound['type'] ?? '');
+        if (! in_array($type, ['image', 'document', 'audio', 'video'], true)) {
+            return null;
+        }
+
+        $payload = $inbound[$type] ?? [];
+        $mediaId = (string) ($payload['id'] ?? '');
+        if ($mediaId === '') {
+            return null;
+        }
+
+        $filename = (string) ($payload['filename'] ?? '');
+        if ($filename === '') {
+            $extension = str_contains((string) ($payload['mime_type'] ?? ''), '/')
+                ? explode('/', (string) $payload['mime_type'])[1]
+                : 'bin';
+            $filename = $type.'.'.preg_replace('/[^a-z0-9]/i', '', $extension);
+        }
+
+        return [
+            'media_id' => $mediaId,
+            'type' => $type,
+            'filename' => $filename,
+            'mime' => $payload['mime_type'] ?? null,
+            'caption' => $payload['caption'] ?? null,
+        ];
+    }
+
+    private function sendInputAck(Conversation $conversation, array $node, FlowExecution $execution, string $text): void
+    {
+        $text = $this->interpolate($text, $conversation, $this->executionVariables($execution));
+        $result = $this->whatsApp->sendText(
+            $conversation->channel,
+            $conversation->contact->wa_id,
+            $text,
+        );
+        $this->storeOutboundMessage($conversation, $node, $result, 'text', [
+            'type' => 'text',
+            'text' => $text,
+            'node_id' => $node['id'],
+        ]);
+        $this->throwWhenSendFailed($result);
     }
 
     private function extractInboundText(array $inbound): ?string

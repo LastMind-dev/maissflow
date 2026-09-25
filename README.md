@@ -32,40 +32,60 @@ diagrama de referência.
 
 ## Ouvidoria / e-SIC (integração MAISSDoc)
 
-O menu Solicitações coleta a manifestação do cidadão por WhatsApp e a envia ao
-formulário público da Ouvidoria do MAISSDoc
-(`https://prdmaissdoc.fgmaiss.com.br/ouvidoria`). Ao final, o cidadão recebe o
-protocolo e o código de acompanhamento gerados pelo GED — os mesmos exibidos no
-módulo Solicitações interno.
+A integração com o MAISSDoc cobre três ramos no menu principal:
 
-O ramo pergunta: identificação (anônima ou não), nome, CPF, e-mail, tipo da
-manifestação, categoria/área, assunto, descrição, endereço, bairro e ponto de
-referência. O telefone é preenchido automaticamente pelo número do WhatsApp.
-Campos opcionais aceitam `0` para pular. Anexos não são coletados por WhatsApp
-na versão atual.
+- **Ouvidoria** — coleta a manifestação (reclamação, denúncia, sugestão,
+  elogio ou solicitação), com opção de envio anônimo, e devolve protocolo +
+  código de acompanhamento. Anexos (fotos/documentos enviados como mídia no
+  WhatsApp, até 5) são baixados da Graph API e anexados à manifestação.
+- **Pedido e-SIC** — pedido de acesso à informação (LAI). Exige identificação
+  completa (nome, CPF e e-mail); não há opção anônima.
+- **Acompanhar pedido** — consulta o andamento pelo par protocolo + código de
+  acompanhamento (a mesma credencial do portal público) e exibe situação,
+  setor, prazo e resposta.
+
+O caminho oficial é a **API JSON do MAISSDoc** (`/api/portal/v1`), autenticada
+por Bearer token server-side com `Idempotency-Key` no envio. Se
+`GED_API_URL`/`GED_API_TOKEN` não estiverem configurados, a ouvidoria cai no
+fallback legado (formulário público com CSRF + sessão); e-SIC, anexos e
+consulta exigem a API.
 
 Configuração no `.env`:
 
 ```dotenv
-GED_OUVIDORIA_URL=https://prdmaissdoc.fgmaiss.com.br/ouvidoria
+# API oficial (habilita ouvidoria+e-SIC, anexos e consulta de andamento)
+GED_API_URL=https://prdmaissdoc.fgmaiss.com.br/api/portal/v1
+GED_API_TOKEN=                       # mesmo valor do PORTAL_API_TOKEN no GED
 GED_OUVIDORIA_TIMEOUT=20
+
+# Fallback legado da ouvidoria (usado só sem a API configurada)
+GED_OUVIDORIA_URL=https://prdmaissdoc.fgmaiss.com.br/ouvidoria
 ```
 
-A instalação em uma automação existente preserva o grafo atual e adiciona o
-ramo ao rascunho:
+No MAISSDoc, configure `PORTAL_API_TOKEN` com o mesmo segredo (ver
+`docs/INTEGRACAO_API_PORTAL.md` no repositório do GED). O e-SIC exige que o
+GED esteja em modo **centralizado** (`departamento_destino_id` opcional) —
+no modo distribuído o envio via API responde 422 por falta de setor.
+
+A instalação em uma automação existente preserva o grafo atual e adiciona os
+três ramos ao rascunho (idempotente — ramos já presentes são mantidos):
 
 ```powershell
-php artisan automation:install-ouvidoria                       # automação ativa mais antiga
-php artisan automation:install-ouvidoria {public_id}           # automação específica
-php artisan automation:install-ouvidoria --menu=menu_principal # outro nó de menu
+php artisan automation:install-portal                        # automação ativa mais antiga
+php artisan automation:install-portal {public_id}            # automação específica
+php artisan automation:install-portal --menu=menu_principal  # outro nó de menu
 ```
 
-O comando adiciona a opção ao menu indicado e o ramo ao rascunho da automação;
-revise no editor e publique para ativar.
+`automation:install-ouvidoria` continua disponível e instala apenas o ramo da
+ouvidoria. Em ambos os casos, revise no editor e publique para ativar.
 
-A integração usa o formulário público com token CSRF e cookie de sessão, sem
-credenciais adicionais. Se o MAISSDoc expor uma API oficial, basta trocar a
-implementação de `OuvidoriaSubmitAction` — o grafo e o fluxo permanecem.
+Ações registradas no grafo (allowlist — o grafo nunca contém URL ou credencial):
+
+- `ouvidoria.submit` — registra a manifestação/pedido na API do GED
+  (`canal: ouvidoria` ou `canal: esic` no nó de ação) e envia os anexos
+  coletados no nó de mídia (`validation: media`, variável `anexos`).
+- `ouvidoria.consulta` — consulta o andamento por protocolo + código e expõe
+  `{{flow.consulta_status_label}}`, `{{flow.consulta_resposta}}` etc.
 
 ## Stack
 

@@ -40,7 +40,7 @@ class OuvidoriaFlowFactory
         $nodes = [
             $node(self::ENTRY_NODE, 'message', 1280, 5600, [
                 'label' => 'Ouvidoria: introdução',
-                'text' => "🏛️ *Ouvidoria — Prefeitura Municipal*\n\nVou registrar sua manifestação (reclamação, denúncia, sugestão, elogio ou solicitação) direto na ouvidoria.\n\nResponda às perguntas a seguir. Nos campos opcionais, envie *0* para pular.\n\n⚠️ Por enquanto não é possível anexar fotos ou documentos — descreva tudo no texto.",
+                'text' => "🏛️ *Ouvidoria — Prefeitura Municipal*\n\nVou registrar sua manifestação (reclamação, denúncia, sugestão, elogio ou solicitação) direto na ouvidoria.\n\nResponda às perguntas a seguir. Nos campos opcionais, envie *0* para pular.\n\n📎 No final você poderá anexar fotos ou documentos, se quiser.",
                 'continueLabel' => 'Iniciar registro',
             ]),
             $node('ouv_ident', 'menu', 1700, 5500, [
@@ -137,9 +137,17 @@ class OuvidoriaFlowFactory
                 'optional' => true,
                 'maxLength' => 255,
             ]),
+            $node('ouv_anexos', 'input', 2580, 6800, [
+                'label' => 'Ouvidoria: anexos',
+                'text' => "Se quiser, envie agora *fotos ou documentos* como anexo (até 5 arquivos, um por mensagem).\n\nQuando terminar — ou se não tiver anexos — envie *0*.",
+                'variable' => 'anexos',
+                'validation' => 'media',
+                'maxItems' => 5,
+                'retryText' => 'Envie a foto ou o documento como anexo do WhatsApp, ou *0* para concluir.',
+            ]),
             $node('ouv_confirma', 'message', 3020, 6400, [
                 'label' => 'Ouvidoria: confirmação',
-                'text' => "📋 *Confira os dados:*\n\n*Tipo:* {{flow.tipo_label}}\n*Assunto:* {{flow.assunto}}\n*Descrição:* {{flow.descricao}}\n*Nome:* {{flow.nome}}\n*Telefone:* {{contact.phone}}\n\nToque em *Confirmar envio* para registrar na ouvidoria.",
+                'text' => "📋 *Confira os dados:*\n\n*Tipo:* {{flow.tipo_label}}\n*Assunto:* {{flow.assunto}}\n*Descrição:* {{flow.descricao}}\n*Nome:* {{flow.nome}}\n*Telefone:* {{contact.phone}}\n*Anexos:* {{flow.anexos_total}} arquivo(s)\n\nToque em *Confirmar envio* para registrar na ouvidoria.",
                 'continueLabel' => 'Confirmar envio',
             ]),
             $node('ouv_submit', 'action', 3460, 6400, [
@@ -180,7 +188,8 @@ class OuvidoriaFlowFactory
             $edge('e-ouv-descricao-endereco', 'ouv_descricao', 'ouv_endereco'),
             $edge('e-ouv-endereco-bairro', 'ouv_endereco', 'ouv_bairro'),
             $edge('e-ouv-bairro-referencia', 'ouv_bairro', 'ouv_referencia'),
-            $edge('e-ouv-referencia-confirma', 'ouv_referencia', 'ouv_confirma'),
+            $edge('e-ouv-referencia-anexos', 'ouv_referencia', 'ouv_anexos'),
+            $edge('e-ouv-anexos-confirma', 'ouv_anexos', 'ouv_confirma'),
             $edge('e-ouv-confirma-submit', 'ouv_confirma', 'ouv_submit'),
             $edge('e-ouv-submit-ok', 'ouv_submit', 'ouv_sucesso', 'success'),
             $edge('e-ouv-submit-erro', 'ouv_submit', 'ouv_erro', 'error'),

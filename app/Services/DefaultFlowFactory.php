@@ -44,6 +44,8 @@ class DefaultFlowFactory
                     ['id' => 'cadastros', 'label' => '👨‍💼 Cadastros', 'description' => 'Destinatários e Tomadores'],
                     ['id' => 'senha', 'label' => '🔑 Senha', 'description' => 'Senha Bloqueada ou Alteração'],
                     ['id' => 'ouvidoria', 'label' => '🏛️ Ouvidoria', 'description' => 'Reclamação, denúncia, sugestão ou elogio à Prefeitura'],
+                    ['id' => 'esic', 'label' => '📄 Pedido e-SIC', 'description' => 'Acesso à informação pública (LAI) — exige CPF'],
+                    ['id' => 'acompanhamento', 'label' => '🔎 Acompanhar pedido', 'description' => 'Andamento de manifestação ou pedido e-SIC'],
                     ['id' => 'suporte', 'label' => '🆘 Suporte', 'description' => 'Falar com Suporte'],
                 ],
             ]),
@@ -417,6 +419,14 @@ class DefaultFlowFactory
         $ouvidoria = app(OuvidoriaFlowFactory::class)->branch('menu_main', 'ouvidoria');
         $nodes = array_merge($nodes, $ouvidoria['nodes']);
         $edges = array_merge($edges, $ouvidoria['edges']);
+
+        $esic = app(EsicFlowFactory::class)->branch('menu_main', 'esic');
+        $nodes = array_merge($nodes, $esic['nodes']);
+        $edges = array_merge($edges, $esic['edges']);
+
+        $acompanhamento = app(AcompanhamentoFlowFactory::class)->branch('menu_main', 'acompanhamento');
+        $nodes = array_merge($nodes, $acompanhamento['nodes']);
+        $edges = array_merge($edges, $acompanhamento['edges']);
 
         $returningMessages = [];
         foreach ($edges as $flowEdge) {

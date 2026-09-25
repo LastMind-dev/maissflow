@@ -20,7 +20,7 @@ class AutomationLifecycleTest extends TestCase
             'name' => 'Atendimento principal',
         ])->assertCreated()->json('data');
 
-        $this->assertCount(50, $created['draft']['graph']['nodes']);
+        $this->assertCount(68, $created['draft']['graph']['nodes']);
         $revision = $created['draft']['revision'];
 
         $graph = $created['draft']['graph'];

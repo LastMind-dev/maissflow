@@ -15,8 +15,8 @@ class FlowGraphValidatorTest extends TestCase
         $this->assertTrue($result['valid']);
         $this->assertSame([], $result['errors']);
         $this->assertSame(['O nó nfe_emissao não possui uma próxima etapa.'], $result['warnings']);
-        $this->assertSame(50, $result['stats']['nodes']);
-        $this->assertSame(91, $result['stats']['edges']);
+        $this->assertSame(68, $result['stats']['nodes']);
+        $this->assertSame(113, $result['stats']['edges']);
     }
 
     public function test_invalid_menu_and_broken_edge_are_rejected(): void

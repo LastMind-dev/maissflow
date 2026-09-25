@@ -144,14 +144,34 @@ Respostas podem ser referenciadas em mensagens com `{{flow.variavel}}` e nos
 atributos do contato com `{{contact.campo}}`. Menus podem persistir a opção
 escolhida em `saveTo`.
 
+Nós `input` com `validation: media` são **nós de coleta de anexos**: em vez de
+validar texto, acumulam os descritores de mídia inbound
+(`image`/`document`/`audio`/`video` — `media_id` da Graph API, filename e
+mime) na variável indicada (`anexos` por padrão), mantêm o nó aguardando novos
+anexos até o limite `maxItems` ou o token de conclusão (`0`/`pular`/…), e
+gravam `{variavel}_total` para interpolação. O binário não é baixado no
+webhook — `WhatsAppCloudApiService::downloadMedia` resolve o `media_id` em URL
+assinada e baixa o conteúdo só quando uma ação precisa encaminhar o arquivo.
+
 Nós `action` executam apenas classes registradas no
-`App\Services\Actions\ActionRegistry` por identificador (`submit_ouvidoria`).
-A classe `OuvidoriaSubmitAction` envia a manifestação ao formulário público do
-MAISSDoc (`POST multipart` com `_token` e cookie de sessão obtidos em GET
-prévio), extrai `protocolo` e `codigo` da resposta e os grava em
-`ouvidoria_protocolo` e `ouvidoria_codigo` do contexto. A configuração vem de
-`services.ged.*` (`GED_OUVIDORIA_URL`, `GED_OUVIDORIA_TIMEOUT`) — o grafo nunca
-carrega URL, cabeçalhos ou segredos.
+`App\Services\Actions\ActionRegistry` por identificador:
+
+- `ouvidoria.submit` — com `GED_API_URL`/`GED_API_TOKEN` configurados, chama a
+  API oficial do MAISSDoc (`POST /api/portal/v1/manifestacoes` com Bearer +
+  `Idempotency-Key` derivado da execução) para o canal `ouvidoria` ou `esic`
+  (dado `canal` do nó); depois baixa e reenvia os anexos coletados pelo nó de
+  mídia (`POST /manifestacoes/{protocolo}/anexos`, autenticado pelo código do
+  cidadão). Sem a API, a ouvidoria cai no fallback do formulário público
+  (`POST` com `_token` + sessão, `GED_OUVIDORIA_URL`); e-SIC não tem fallback.
+  Protocolo e código são gravados em `ouvidoria_protocolo`/`ouvidoria_codigo`.
+- `ouvidoria.consulta` — `POST /api/portal/v1/consulta` com protocolo + código
+  (de `consulta_*` ou do envio anterior) e expõe `consulta_status_label`,
+  `consulta_resposta`, `consulta_prazo`, `consulta_setor` etc.; credencial
+  inválida segue a aresta `error` com `{{flow.consulta_motivo}}` preenchido.
+
+A configuração vem de `services.ged.*` (`GED_API_URL`, `GED_API_TOKEN`,
+`GED_OUVIDORIA_URL`, `GED_OUVIDORIA_TIMEOUT`) — o grafo nunca carrega URL,
+cabeçalhos ou segredos.
 
 A execução registra `input_received`, `action_executed` e `action_failed` em
 `flow_execution_events` com entrada, saída resumida e duração. Falhas seguem a

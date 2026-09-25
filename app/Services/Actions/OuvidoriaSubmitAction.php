@@ -4,12 +4,18 @@ namespace App\Services\Actions;
 
 use App\Models\Conversation;
 use App\Models\FlowExecution;
+use App\Services\GedPortalClient;
+use App\Services\WhatsAppCloudApiService;
 use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Support\Facades\Http;
 
 class OuvidoriaSubmitAction implements FlowAction
 {
     private const REQUIRED_VARIABLES = ['tipo', 'assunto', 'descricao'];
+
+    private const REQUIRED_ESIC = ['nome', 'cpf', 'email', 'assunto', 'descricao'];
+
+    private const MAX_ANEXOS = 5;
 
     public function id(): string
     {
@@ -23,7 +29,7 @@ class OuvidoriaSubmitAction implements FlowAction
 
     public function description(): string
     {
-        return 'Envia a manifestação coletada no fluxo para a ouvidoria do GED e guarda o protocolo em {{flow.ouvidoria_protocolo}}.';
+        return 'Envia a manifestação coletada no fluxo para a ouvidoria/e-SIC do GED e guarda o protocolo em {{flow.ouvidoria_protocolo}}.';
     }
 
     public function simulatedVariables(): array
@@ -45,17 +51,137 @@ class OuvidoriaSubmitAction implements FlowAction
             ];
         }
 
-        $url = (string) config('services.ged.ouvidoria_url', '');
-        if ($url === '' || ! filter_var($url, FILTER_VALIDATE_URL)) {
-            return ['success' => false, 'error' => 'GED_OUVIDORIA_URL não configurada.'];
-        }
+        $canal = ($config['canal'] ?? 'ouvidoria') === 'esic' ? 'esic' : 'ouvidoria';
 
         $missing = array_values(array_filter(
-            self::REQUIRED_VARIABLES,
+            $canal === 'esic' ? self::REQUIRED_ESIC : self::REQUIRED_VARIABLES,
             fn (string $key): bool => blank($variables[$key] ?? null),
         ));
         if ($missing !== []) {
             return ['success' => false, 'error' => 'Variáveis obrigatórias ausentes: '.implode(', ', $missing)];
+        }
+
+        $client = app(GedPortalClient::class);
+        if ($client->disponivel()) {
+            return $this->submitViaApi($client, $canal, $variables, $conversation, $execution);
+        }
+
+        // Fallback legado: formulário público com CSRF + sessão (ouvidoria apenas).
+        if ($canal === 'esic') {
+            return ['success' => false, 'error' => 'O canal e-SIC exige a API do GED (GED_API_URL/GED_API_TOKEN).'];
+        }
+
+        return $this->submitViaFormulario($variables, $conversation);
+    }
+
+    /**
+     * Caminho oficial: POST JSON em /api/portal/v1/manifestacoes com Bearer
+     * token e Idempotency-Key derivado da execução (retry seguro). Anexos
+     * coletados no fluxo são enviados depois, um a um, autenticados pelo
+     * código do cidadão.
+     */
+    private function submitViaApi(
+        GedPortalClient $client,
+        string $canal,
+        array $variables,
+        Conversation $conversation,
+        FlowExecution $execution,
+    ): array {
+        $anonymous = $canal === 'ouvidoria' && ($variables['identificacao'] ?? null) === 'anonimo';
+
+        $payload = array_filter([
+            'canal' => $canal,
+            'anonimo' => $anonymous ?: null,
+            'nome_solicitante' => $anonymous ? null : ($variables['nome'] ?? null),
+            'cpf' => $anonymous ? null : $this->formatCpf($variables['cpf'] ?? null),
+            'email' => $anonymous ? null : ($variables['email'] ?? null),
+            'telefone' => $anonymous ? null : $this->formatPhone(
+                $variables['telefone'] ?? $conversation->contact->wa_id ?? ''
+            ),
+            'tipo' => $variables['tipo'] ?? null,
+            'categoria' => $variables['categoria'] ?? null,
+            'assunto' => $variables['assunto'],
+            'descricao' => $variables['descricao'],
+            'endereco' => $variables['endereco'] ?? null,
+            'bairro' => $variables['bairro'] ?? null,
+            'referencia' => $variables['referencia'] ?? null,
+        ], fn ($value): bool => $value !== null);
+
+        $result = $client->registrar($payload, "maissflow-exec-{$execution->id}-{$canal}");
+
+        if (! $result['success']) {
+            $detail = collect((array) data_get($result, 'data.errors', []))->flatten()->first();
+            $error = $detail ?: $result['error'] ?: 'A API do GED recusou o envio.';
+
+            return ['success' => false, 'error' => "O GED recusou os dados: {$error}"];
+        }
+
+        $protocolo = data_get($result, 'data.protocolo');
+        $codigo = data_get($result, 'data.codigo');
+
+        $enviados = $this->enviarAnexos($client, $protocolo, $codigo, $variables, $conversation);
+
+        return [
+            'success' => true,
+            'variables' => array_filter([
+                'ouvidoria_protocolo' => $protocolo,
+                'ouvidoria_codigo' => $codigo,
+                'ouvidoria_prazo' => data_get($result, 'data.data_limite'),
+                'ouvidoria_anexos' => $enviados > 0 ? (string) $enviados : null,
+                'ouvidoria_enviada' => '1',
+            ]),
+            'summary' => 'Manifestação registrada pela API'.($protocolo ? " — protocolo {$protocolo}" : '')
+                .($enviados > 0 ? " com {$enviados} anexo(s)" : ''),
+        ];
+    }
+
+    /**
+     * Baixa as mídias coletadas pelo nó de anexos (variável 'anexos') da Graph
+     * API e reenvia cada uma ao GED. Falhas individuais são toleradas — a
+     * manifestação já existe e o resumo registra quantas subiram.
+     */
+    private function enviarAnexos(
+        GedPortalClient $client,
+        ?string $protocolo,
+        ?string $codigo,
+        array $variables,
+        Conversation $conversation,
+    ): int {
+        $anexos = $variables['anexos'] ?? [];
+        if (! is_array($anexos) || $anexos === [] || blank($protocolo) || blank($codigo)) {
+            return 0;
+        }
+
+        $whatsApp = app(WhatsAppCloudApiService::class);
+        $enviados = 0;
+
+        foreach (array_slice($anexos, 0, self::MAX_ANEXOS) as $anexo) {
+            $mediaId = (string) ($anexo['media_id'] ?? '');
+            if ($mediaId === '') {
+                continue;
+            }
+
+            $media = $whatsApp->downloadMedia($conversation->channel, $mediaId);
+            if ($media === null || ($media['binary'] ?? '') === '') {
+                continue;
+            }
+
+            $filename = (string) ($anexo['filename'] ?? 'anexo');
+            $result = $client->enviarAnexo($protocolo, $codigo, $filename, $media['binary']);
+            if ($result['success']) {
+                $enviados++;
+            }
+        }
+
+        return $enviados;
+    }
+
+    /** Caminho legado: scraping do formulário público (sem token de API). */
+    private function submitViaFormulario(array $variables, Conversation $conversation): array
+    {
+        $url = (string) config('services.ged.ouvidoria_url', '');
+        if ($url === '' || ! filter_var($url, FILTER_VALIDATE_URL)) {
+            return ['success' => false, 'error' => 'GED_OUVIDORIA_URL não configurada.'];
         }
 
         $timeout = (int) config('services.ged.timeout', 20);
