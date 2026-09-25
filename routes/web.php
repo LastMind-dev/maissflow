@@ -54,6 +54,7 @@ Route::middleware('auth')->prefix('api/app')->group(function (): void {
 
     Route::put('/channel', [ChannelController::class, 'update']);
     Route::post('/channel/test', [ChannelController::class, 'test']);
+    Route::post('/channel/register', [ChannelController::class, 'register'])->middleware('throttle:3,10');
 });
 
 Route::get('/app/{path?}', [AppController::class, 'show'])

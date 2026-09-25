@@ -77,6 +77,36 @@ class ChannelController extends Controller
         ], $result['success'] ? 200 : 422);
     }
 
+    public function register(Request $request, WhatsAppCloudApiService $api, AuditService $audit): JsonResponse
+    {
+        abort_unless($request->user()->role === 'owner', 403);
+
+        $validated = $request->validate([
+            'pin' => ['required', 'regex:/^[0-9]{6}$/'],
+        ]);
+        $channel = WhatsAppChannel::query()
+            ->where('workspace_id', $request->user()->workspace_id)
+            ->firstOrFail();
+        $result = $api->registerPhoneNumber($channel, $validated['pin']);
+
+        $audit->record($request->user(), 'whatsapp_channel.registration_attempted', $channel, null, [
+            'success' => $result['success'],
+            'http_status' => $result['status'],
+            'meta_error_code' => $result['code'],
+            'meta_error_subcode' => $result['subcode'],
+        ], $request);
+
+        return response()->json([
+            'message' => $result['success']
+                ? 'Número registrado na Meta.'
+                : 'A Meta não registrou o número. Confira a permissão do token, a verificação do telefone e o PIN.',
+            'meta' => $result['success'] ? null : [
+                'code' => $result['code'],
+                'subcode' => $result['subcode'],
+            ],
+        ], $result['success'] ? 200 : 422);
+    }
+
     private function data(WhatsAppChannel $channel): array
     {
         return [

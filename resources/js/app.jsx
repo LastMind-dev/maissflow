@@ -175,6 +175,7 @@ function App() {
                     {route.page === 'settings' && (
                         <SettingsPage
                             channel={bootstrap?.channel}
+                            userRole={bootstrap?.user?.role}
                             onUpdated={loadBootstrap}
                             notify={notify}
                         />
@@ -1674,7 +1675,7 @@ function ContactsPage({ notify }) {
     );
 }
 
-function SettingsPage({ channel, onUpdated, notify }) {
+function SettingsPage({ channel, userRole, onUpdated, notify }) {
     const [activeTab, setActiveTab] = useState('channel');
     const tabs = {
         channel: {
@@ -1705,7 +1706,7 @@ function SettingsPage({ channel, onUpdated, notify }) {
                     <button className={activeTab === 'team' ? 'active' : ''} onClick={() => setActiveTab('team')}><Users size={17} /> Equipe e permissões</button>
                     <button className={activeTab === 'security' ? 'active' : ''} onClick={() => setActiveTab('security')}><ShieldCheck size={17} /> Segurança e auditoria</button>
                 </aside>
-                {activeTab === 'channel' && <ChannelSettings channel={channel} onUpdated={onUpdated} notify={notify} />}
+                {activeTab === 'channel' && <ChannelSettings channel={channel} userRole={userRole} onUpdated={onUpdated} notify={notify} />}
                 {activeTab === 'team' && <TeamSettings notify={notify} />}
                 {activeTab === 'security' && <SecuritySettings notify={notify} />}
             </div>
@@ -1713,7 +1714,7 @@ function SettingsPage({ channel, onUpdated, notify }) {
     );
 }
 
-function ChannelSettings({ channel, onUpdated, notify }) {
+function ChannelSettings({ channel, userRole, onUpdated, notify }) {
     const [form, setForm] = useState({
         name: channel?.name || 'WhatsApp principal',
         phone_number_id: channel?.phone_number_id || '',
@@ -1726,6 +1727,8 @@ function ChannelSettings({ channel, onUpdated, notify }) {
     });
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
+    const [registering, setRegistering] = useState(false);
+    const registrationPin = useRef(null);
     const webhookUrl = `${window.location.origin}/api/webhooks/whatsapp`;
     useEffect(() => {
         setForm((current) => ({
@@ -1764,6 +1767,24 @@ function ChannelSettings({ channel, onUpdated, notify }) {
             setTesting(false);
         }
     };
+    const registerNumber = async () => {
+        const pin = registrationPin.current?.value || '';
+        if (!/^[0-9]{6}$/.test(pin)) {
+            notify('Informe um PIN de seis dígitos para registrar o número na Meta.', 'error');
+            return;
+        }
+
+        setRegistering(true);
+        try {
+            const { data } = await api.post('/channel/register', { pin });
+            notify(data.message);
+        } catch (error) {
+            notify(errorMessage(error), 'error');
+        } finally {
+            if (registrationPin.current) registrationPin.current.value = '';
+            setRegistering(false);
+        }
+    };
     const copyWebhook = () => navigator.clipboard.writeText(webhookUrl)
         .then(() => notify('URL do webhook copiada.'))
         .catch(() => notify('Não foi possível copiar automaticamente. Selecione a URL manualmente.', 'error'));
@@ -1794,6 +1815,19 @@ function ChannelSettings({ channel, onUpdated, notify }) {
                 <div className="copy-field"><code>{webhookUrl}</code><button type="button" onClick={copyWebhook}><Copy size={16} /> Copiar</button></div>
                 <div className="security-note"><LockKeyhole size={18} /><p><strong>Validação ativa:</strong> toda notificação POST exige assinatura HMAC SHA-256 gerada com o App Secret. Eventos repetidos são ignorados por idempotência.</p></div>
             </section>
+            {userRole === 'owner' && (
+                <section className="settings-section registration-section">
+                    <div className="section-title"><div className="section-icon green"><ShieldCheck size={19} /></div><div><h3>Registrar número na Meta</h3><p>Use esta ação quando o telefone aparecer como pendente no Gerenciador do WhatsApp.</p></div></div>
+                    <p>Telefone configurado: <strong>{channel?.display_phone_number || 'Não informado'}</strong> · Phone Number ID: <code>{channel?.phone_number_id || 'Não informado'}</code></p>
+                    <p>Crie um PIN de seis dígitos para a verificação em duas etapas e guarde-o em local seguro. Ele é diferente do token de verificação do webhook e não é salvo no MaissFlow.</p>
+                    <label className="form-field registration-pin" htmlFor="whatsapp-registration-pin"><span>PIN de seis dígitos da Meta</span>
+                        <input id="whatsapp-registration-pin" ref={registrationPin} type="password" inputMode="numeric" autoComplete="off" maxLength={6} placeholder="••••••" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); registerNumber(); } }} />
+                    </label>
+                    <button type="button" className="secondary-button" onClick={registerNumber} disabled={registering || !channel?.phone_number_id || !channel?.has_access_token}>
+                        {registering ? <LoaderCircle className="spin" size={16} /> : <ShieldCheck size={16} />} Registrar este número
+                    </button>
+                </section>
+            )}
             <div className="settings-actions">
                 <button type="button" className="secondary-button" onClick={test} disabled={testing || !channel?.configured}>{testing ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />} Testar conexão</button>
                 <button className="primary-button" disabled={saving}>{saving ? <LoaderCircle className="spin" size={16} /> : <ShieldCheck size={16} />} Salvar configuração</button>

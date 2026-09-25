@@ -722,6 +722,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .settings-nav button.active { color: #185fc6; background: #eaf2ff; font-weight: 750; }
 .settings-form { display: flex; flex-direction: column; gap: 15px; }
 .settings-section { padding: 20px; border: 1px solid var(--border); border-radius: 11px; background: #fff; }
+.registration-section > p { color: #647084; font-size: 10px; line-height: 1.55; }
+.registration-pin { max-width: 220px; margin: 16px 0 12px; }
 .section-title { display: flex; align-items: center; gap: 11px; margin-bottom: 20px; }
 .section-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 9px; color: #1769e0; background: #eaf2ff; }
 .section-icon.green { color: #13805a; background: #e8f7f1; }

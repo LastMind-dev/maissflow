@@ -98,6 +98,26 @@ class WhatsAppCloudApiService
         return $this->normalize($response);
     }
 
+    public function registerPhoneNumber(WhatsAppChannel $channel, string $pin): array
+    {
+        $this->assertConfigured($channel);
+
+        $response = Http::acceptJson()
+            ->withToken($channel->access_token)
+            ->timeout(15)
+            ->post($this->baseUrl($channel).'/'.$channel->phone_number_id.'/register', [
+                'messaging_product' => 'whatsapp',
+                'pin' => $pin,
+            ]);
+
+        return [
+            'success' => $response->successful() && $response->json('success') === true,
+            'status' => $response->status(),
+            'code' => $response->json('error.code'),
+            'subcode' => $response->json('error.error_subcode'),
+        ];
+    }
+
     private function send(WhatsAppChannel $channel, array $payload): array
     {
         $this->assertConfigured($channel);
