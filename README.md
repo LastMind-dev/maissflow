@@ -54,12 +54,12 @@ Configuração no `.env`:
 
 ```dotenv
 # API oficial (habilita ouvidoria+e-SIC, anexos e consulta de andamento)
-GED_API_URL=https://prdmaissdoc.fgmaiss.com.br/api/portal/v1
+GED_API_URL=https://maissdocitapagipemg.fgmaiss.com.br/api/portal/v1
 GED_API_TOKEN=                       # mesmo valor do PORTAL_API_TOKEN no GED
 GED_OUVIDORIA_TIMEOUT=20
 
 # Fallback legado da ouvidoria (usado só sem a API configurada)
-GED_OUVIDORIA_URL=https://prdmaissdoc.fgmaiss.com.br/ouvidoria
+GED_OUVIDORIA_URL=https://maissdocitapagipemg.fgmaiss.com.br/ouvidoria
 ```
 
 No MAISSDoc, configure `PORTAL_API_TOKEN` com o mesmo segredo (ver

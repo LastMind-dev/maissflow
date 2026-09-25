@@ -36,12 +36,12 @@ return [
     ],
 
     'ged' => [
-        'ouvidoria_url' => env('GED_OUVIDORIA_URL', 'https://prdmaissdoc.fgmaiss.com.br/ouvidoria'),
+        'ouvidoria_url' => env('GED_OUVIDORIA_URL', 'https://maissdocitapagipemg.fgmaiss.com.br/ouvidoria'),
         'timeout' => (int) env('GED_OUVIDORIA_TIMEOUT', 20),
         // API oficial de integração do MAISSDoc (/api/portal/v1). Quando a URL
         // e o token estão configurados, envio/consulta/anexos usam JSON em vez
         // do scraping do formulário público.
-        'api_url' => env('GED_API_URL', 'https://prdmaissdoc.fgmaiss.com.br/api/portal/v1'),
+        'api_url' => env('GED_API_URL', 'https://maissdocitapagipemg.fgmaiss.com.br/api/portal/v1'),
         'api_token' => env('GED_API_TOKEN'),
     ],
 

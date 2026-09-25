@@ -158,14 +158,14 @@ class OuvidoriaFlowFactory
                 'label' => 'Ouvidoria: sucesso',
                 'text' => "✅ *Manifestação registrada com sucesso!*\n\n*Protocolo:* {{flow.ouvidoria_protocolo}}\n*Código de acompanhamento:* {{flow.ouvidoria_codigo}}\n\n⚠️ *Guarde os dois juntos* — você vai precisar de ambos para acompanhar e, por segurança, eles não podem ser recuperados.\n\nSua manifestação foi encaminhada ao setor responsável. Se você se identificou, receberá a resposta pelo e-mail informado.\n\nPara consultar depois, use a opção *Acompanhar pedido* do menu ou o link abaixo.",
                 'links' => [
-                    ['label' => 'Acompanhar manifestação', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/consulta'],
+                    ['label' => 'Acompanhar manifestação', 'url' => 'https://maissdocitapagipemg.fgmaiss.com.br/consulta'],
                 ],
             ]),
             $node('ouv_erro', 'message', 3900, 6600, [
                 'label' => 'Ouvidoria: erro',
                 'text' => "⚠️ *Não consegui registrar sua manifestação agora.*\n\nVocê pode tentar direto pelo site da ouvidoria ou falar com nosso suporte.",
                 'links' => [
-                    ['label' => 'Abrir ouvidoria', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/ouvidoria'],
+                    ['label' => 'Abrir ouvidoria', 'url' => 'https://maissdocitapagipemg.fgmaiss.com.br/ouvidoria'],
                 ],
             ]),
         ];

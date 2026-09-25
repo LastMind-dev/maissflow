@@ -65,14 +65,14 @@ class AcompanhamentoFlowFactory
                 'label' => 'Consulta: resultado',
                 'text' => "📄 *Protocolo {{flow.consulta_protocolo}}*\n\n*Tipo:* {{flow.consulta_tipo_label}}\n*Assunto:* {{flow.consulta_assunto}}\n*Situação:* {{flow.consulta_status_label}}\n*Registrado em:* {{flow.consulta_criado_em}}\n*Prazo de resposta:* {{flow.consulta_prazo}}\n*Setor responsável:* {{flow.consulta_setor}}\n*Anexos:* {{flow.consulta_anexos_total}}\n\n*Resposta:*\n{{flow.consulta_resposta}}\n\n📌 Pedidos *e-SIC* com resposta negativa, parcial ou ausente no prazo podem ser *recorridos em até 10 dias* pelo portal.",
                 'links' => [
-                    ['label' => 'Ver detalhes no portal', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/consulta'],
+                    ['label' => 'Ver detalhes no portal', 'url' => 'https://maissdocitapagipemg.fgmaiss.com.br/consulta'],
                 ],
             ]),
             $node('ac_erro', 'message', 2580, 8960, [
                 'label' => 'Consulta: erro',
                 'text' => "⚠️ *Não foi possível localizar o andamento.*\n\n{{flow.consulta_motivo}}",
                 'links' => [
-                    ['label' => 'Consultar no portal', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/consulta'],
+                    ['label' => 'Consultar no portal', 'url' => 'https://maissdocitapagipemg.fgmaiss.com.br/consulta'],
                 ],
             ]),
         ];

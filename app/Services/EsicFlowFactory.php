@@ -102,14 +102,14 @@ class EsicFlowFactory
                 'label' => 'e-SIC: sucesso',
                 'text' => "✅ *Pedido registrado com sucesso!*\n\n*Protocolo:* {{flow.ouvidoria_protocolo}}\n*Código de acompanhamento:* {{flow.ouvidoria_codigo}}\n\n⚠️ *Guarde os dois juntos* — eles não podem ser recuperados depois.\n\nSeu pedido de acesso à informação foi recebido e será respondido dentro do *prazo legal*. Se a resposta for negativa ou parcial — ou não chegar no prazo — você pode *recorrer em até 10 dias* pelo portal.\n\nPara acompanhar, use a opção *Acompanhar pedido* do menu ou o link abaixo.",
                 'links' => [
-                    ['label' => 'Acompanhar pedido', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/consulta'],
+                    ['label' => 'Acompanhar pedido', 'url' => 'https://maissdocitapagipemg.fgmaiss.com.br/consulta'],
                 ],
             ]),
             $node('esic_erro', 'message', 3460, 7620, [
                 'label' => 'e-SIC: erro',
                 'text' => "⚠️ *Não consegui registrar seu pedido agora.*\n\nVocê pode tentar direto pelo portal e-SIC ou falar com nosso suporte.",
                 'links' => [
-                    ['label' => 'Abrir portal e-SIC', 'url' => 'https://prdmaissdoc.fgmaiss.com.br/esic'],
+                    ['label' => 'Abrir portal e-SIC', 'url' => 'https://maissdocitapagipemg.fgmaiss.com.br/esic'],
                 ],
             ]),
         ];
