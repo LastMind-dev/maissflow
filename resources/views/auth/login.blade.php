@@ -52,6 +52,7 @@
 
                 <button type="submit" class="login-submit">Entrar no MaissFlow</button>
                 <p class="login-help">Ambiente corporativo protegido e auditável.</p>
+                <p class="login-help"><a href="{{ route('privacy-policy') }}">Política de Privacidade</a></p>
             </form>
         </section>
     </main>
